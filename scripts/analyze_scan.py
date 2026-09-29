@@ -18,6 +18,7 @@ import matplotlib  # noqa: E402
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.ticker  # noqa: E402,F401
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 INK, INK2, GRID = "#0b0b0b", "#52514e", "#e4e3df"
@@ -25,6 +26,7 @@ SER = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]
 plt.rcParams.update({"font.size": 10, "axes.edgecolor": INK2, "axes.labelcolor": INK, "xtick.color": INK2,
                      "ytick.color": INK2, "axes.spines.top": False, "axes.spines.right": False})
 TARGETS = (0.98, 0.99, 0.995)
+T_RAPID = 400.0  # us
 GEOM_LABEL = {"B0": "B = 0", "B1_par_tw": "B = 1 G"}
 
 
@@ -78,32 +80,56 @@ def main(path=os.path.join(ROOT, "results", "scan.json")):
                           f"bg={b['bg']:.2f} surv={b['survival']:.3f}")
                 else:
                     print(f"{key:30s} not reached (max F = {fmax:.4f})")
+    # Pareto fronts (imaging time vs Raman) at F = 99%, and the "rapid" optimum (T <= T_RAPID)
+    fronts = {}
+    for g in GEOM_LABEL:
+        for eta in etas:
+            pts = []
+            for r in recs:
+                if r["geom"] != g:
+                    continue
+                ev = evaluate(r, eta, 0.99)
+                if ev:
+                    pts.append({**ev, "U0": r["U0"], "s": r["s"], "d0": r["d0"]})
+            pts.sort(key=lambda p: p["T_us"])
+            front, bestp = [], np.inf
+            for p in pts:
+                if p["P_R"] < bestp:
+                    front.append(p)
+                    bestp = p["P_R"]
+            fronts[f"{g}|{eta}"] = front
+            rapid = [p for p in pts if p["T_us"] <= T_RAPID]
+            best[f"{g}|eta={eta}|rapid"] = min(rapid, key=lambda p: p["P_R"]) if rapid else None
+            b = best[f"{g}|eta={eta}|rapid"]
+            if b:
+                print(f"RAPID {g} eta={eta}: P_R={b['P_R']:.2e} s={b['s']} U0={b['U0']} d0={b['d0']} T={b['T_us']:.0f}us "
+                      f"photons={b['photons']:.0f} surv={b['survival']:.3f}")
     with open(os.path.join(ROOT, "results", "optimum.json"), "w") as f:
-        json.dump({"meta": meta, "best": best}, f, indent=1)
+        json.dump({"meta": meta, "best": best, "fronts": fronts, "T_rapid_us": T_RAPID}, f, indent=1)
 
-    # figure: P_R at F=99% vs s, per U0 (best d0), rows = eta, cols = geometry
-    u0s = sorted({r["U0"] for r in recs})
-    ss = sorted({r["s"] for r in recs})
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.2), sharey=True)
     for ax, eta in zip(axes, etas):
         for gi, g in enumerate(GEOM_LABEL):
-            for ui, u0 in enumerate(u0s):
-                ys = []
-                for s in ss:
-                    evs = [evaluate(r, eta, 0.99) for r in recs if r["geom"] == g and r["U0"] == u0 and r["s"] == s]
-                    evs = [e for e in evs if e]
-                    ys.append(min(e["P_R"] for e in evs) if evs else np.nan)
-                ax.plot(ss, ys, color=SER[ui], lw=2, ls="-" if g != "B0" else "--", marker="o" if g != "B0" else "s",
-                        ms=4, label=f"{GEOM_LABEL[g]}, U₀ = {u0} mK")
+            fr = fronts[f"{g}|{eta}"]
+            ax.plot([p["T_us"] for p in fr], [p["P_R"] for p in fr], color=SER[gi], lw=2, marker="o", ms=5,
+                    label=GEOM_LABEL[g])
+            for p in fr:
+                ax.annotate(f"s={p['s']:g}", (p["T_us"], p["P_R"]), textcoords="offset points",
+                            xytext=(4, 6 if gi else -12), fontsize=7.5, color=INK2)
+        ax.axvline(T_RAPID, color=INK2, lw=1, ls=":")
         ax.set_xscale("log")
         ax.set_yscale("log")
-        ax.set_xlabel("total saturation parameter s_tot")
-        ax.set_title(f"collection efficiency η = {eta:.0%}", loc="left", fontsize=11)
+        ax.set_xticks([100, 200, 400, 1000, 2000, 4000])
+        ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"{v:g}"))
+        ax.xaxis.set_minor_formatter(matplotlib.ticker.NullFormatter())
+        ax.set_xlabel("imaging time T for a 99%-fidelity histogram (\u00b5s)")
+        ax.set_title(f"collection efficiency \u03b7 = {eta:.0%}", loc="left", fontsize=11)
         ax.grid(color=GRID, lw=0.8, which="both")
         ax.set_axisbelow(True)
-    axes[0].set_ylabel("N=0 Raman probability per image at F = 99%")
-    axes[1].legend(frameon=False, fontsize=8, loc="upper left", ncol=1)
-    fig.suptitle("Cross talk needed for a 99%-fidelity histogram (missing points: 99% not reachable)",
+        ax.legend(frameon=False, fontsize=9, loc="upper right")
+    axes[0].set_ylabel("N=0 Raman probability per image")
+    axes[0].set_ylim(5e-5, 1e-3)
+    fig.suptitle("Best achievable trade-off between speed and cross talk (grid scan over s_tot, \u0394, U\u2080)",
                  x=0.01, ha="left", fontsize=11)
     fig.tight_layout()
     fig.savefig(os.path.join(ROOT, "docs", "figures", "pareto.png"), dpi=150)

@@ -1,6 +1,8 @@
 # Simulation plan: rapid resonant imaging of CaF in tweezers at finite magnetic field
 
-**Status: this is a plan for review. No simulation has been run yet.**
+**Status: executed; see [`RESULTS.md`](RESULTS.md).** The scope was narrowed on review: the N=0 cross
+talk is off-resonant Raman scattering only, collection is 2–4%, and the objective is a reasonable
+histogram at minimal intensity × duration. This file is kept as the original plan.
 The only code so far is `scripts/plan_estimates.py`. It diagonalises the X-state
 Hamiltonian and works out the back-of-envelope numbers below, which are
 reproducible with `python scripts/plan_estimates.py`.

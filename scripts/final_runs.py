@@ -25,6 +25,7 @@ from caf.lookup import Geometry, Model  # noqa: E402
 from caf.motion import run_mc  # noqa: E402
 from run_scan import GEOMS  # noqa: E402
 from analyze_scan import t_at  # noqa: E402
+import fig_histograms  # noqa: E402
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 INK, INK2, GRID = "#0b0b0b", "#52514e", "#e4e3df"
@@ -68,8 +69,8 @@ def main():
     for col, eta in enumerate((0.02, 0.04)):
         for row, g in enumerate(("B0", "B1_par_tw")):
             ax = axes[row, col]
-            b = opt.get(f"{g}|eta={eta}|F=0.99")
-            label = "F = 99%"
+            b = opt.get(f"{g}|eta={eta}|rapid")
+            label = "rapid optimum"
             if b is None:  # fall back to the best-fidelity point
                 cand = [r for r in scan if r["geom"] == g]
                 r = max(cand, key=lambda r: max(r[f"F_{eta}"]))
@@ -102,10 +103,10 @@ def main():
             hist_out[f"{g}|{eta}"] = {**b, "F": F, "n_th": int(nth), "eps_bright": eb, "eps_dark": ed, "P_R": pr,
                                       "bg": bg, "p_bright": pb.tolist(), "p_dark": pd.tolist(),
                                       "survival": float(np.mean(out["t_dead_us"] < 0))}
-    axes[0, 0].legend(frameon=False, fontsize=8.5, loc="upper center")
-    fig.tight_layout()
-    fig.savefig(os.path.join(ROOT, "docs", "figures", "histograms.png"), dpi=150)
     plt.close(fig)
+    with open(os.path.join(ROOT, "results", "histograms.json"), "w") as f:
+        json.dump(hist_out, f)
+    fig_histograms.plot(hist_out)
 
     # ---------------------------------------------------------------- 2. artifact data
     art = {"meta": {"zeta": ZETA, "gamma_half": 0.5 * 5.2083e7, "p_trap": P_TRAP, "kappa_s": KAPPA_S}, "runs": []}
@@ -135,7 +136,7 @@ def main():
     # ---------------------------------------------------------------- 3. sensitivity
     sens = {}
     for eta in (0.02, 0.04):
-        b = opt.get(f"B1_par_tw|eta={eta}|F=0.99")
+        b = opt.get(f"B1_par_tw|eta={eta}|rapid")
         if b is None:
             continue
         geom = GEOMS["B1_par_tw"]
