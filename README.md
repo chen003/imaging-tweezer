@@ -10,9 +10,13 @@ Simulating fluorescence imaging of single CaF molecules in optical tweezers. The
 [interactive explorer](https://claude.ai/artifact/HjqQHnMSujqfdPKip5igzH) (private artifact).
 [`PLAN.md`](PLAN.md) is the original plan.
 
-**Short answer:** yes. At 1 G, a 99%-fidelity histogram costs the N=0 qubit a Raman probability of
-2.5×10⁻⁴ (η = 2%, 313 µs) or 1.0×10⁻⁴ (η = 4%, 257 µs) per image, the same as at zero field. The one
-condition is that the imaging polarisation must not be parallel to **B**.
+**Short answer:** yes. The model is calibrated against the paper's measured scattering rate, photon
+counts and false-negative rate. With the paper's recipe (4.5 mW/cm², 3 ms), 1 G gives the same
+detection as their 4.4 G and 2.0 G fields, and 1.5× the scattering rate of 4.4 G. The imaging
+polarisation must not be parallel to **B**. The N=0 Raman cross talk does not depend on the field:
+about 5.6×10⁻⁴ per 3 ms image intrinsically, and about 5× more with the paper's laser. At
+η = 2–4%, an EMCCD needs 3–4 ms images; a photon-counting camera reaches 99% in about 0.7 ms with
+P_Raman ≈ 1–2×10⁻⁴.
 
 ## Layout
 
@@ -23,6 +27,8 @@ caf/raman.py       off-resonant Kramers-Heisenberg scattering of N=0 (Raman/Rayl
 caf/motion.py      numba Monte-Carlo of trajectories, recoil heating, loss in a Gaussian tweezer
 caf/camera.py      photon-count histograms and threshold fidelity
 caf/lookup.py      R(detuning, local intensity) tables and lab-frame geometry
+caf/ensemble.py    parallel lookups averaged over the standing-wave field of several imaging beams
+caf/paper.py       experimental parameters of Holland et al. (arXiv:2406.02391)
 scripts/           scan, analysis, figures, explorer page builder
 tests/             level energies, selection rules, dark states, sum rules
 results/           scan output (JSON) and summaries

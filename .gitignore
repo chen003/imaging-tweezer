@@ -5,3 +5,4 @@ __pycache__/
 results/cache/
 *.npy
 results/scan.log
+results/*.log

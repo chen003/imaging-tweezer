@@ -2,7 +2,72 @@
 
 Interactive version: [CaF Imaging at 1 G](https://claude.ai/artifact/HjqQHnMSujqfdPKip5igzH). This is a private artifact; share it from its Share menu.
 
-## Upshot
+## Update: calibrated against the paper (Holland *et al.*, arXiv:2406.02391 / PRX 2025)
+
+With the paper in hand, the model now uses its actual hardware (`caf/paper.py`):
+- 781 nm tweezer, w₀ = 730 nm, 930 µK imaging depth;
+- two retro-reflected imaging beams, I = 4.5 mW/cm² (s_tot = 0.93), hyperfine power ratio 5 : 2.7 : 1.1 : 3.8, 3 ms;
+- N=1 differential light shift 10% of U (RMS);
+- EMCCD with ε₀₁ = 7.2% at threshold 4.8.
+
+**The paper already images at a finite field:** 4.4 G at 53° to the tweezer polarisation for the state-error image, and 2.0 G at 90° for the erasure image. So the question is whether it still works as low as 1 G.
+
+### Model vs measurement
+
+| quantity | paper | model |
+|---|---|---|
+| photon scattering rate, 4.4 G / 53° | ≈1.6×10⁵ s⁻¹ (their free-space OBE: 2.8×10⁵) | **1.64×10⁵ s⁻¹** (in-trap OBE, averaged over the standing-wave field) |
+| photons collected in 3 ms (survivors, η ≈ 5%) | ≈24 | 22.8 |
+| false negatives ε₁₀ at threshold 4.8 | 3.3% (state), 4.5% (erasure) | 3.3%, 3.4% (start temperature 80 µK fitted to this number) |
+| survival of bright molecules over 3 ms | "lifetime comparable to image duration" | 69% (4.4 G), 45% (2.0 G) |
+| N=0 off-resonant scattering, \|F=1, m_F=−1⟩ | golden-rule 0.24 s⁻¹; measured loss 0.76(11) s⁻¹ | total 0.27 s⁻¹; state-changing (Raman) 0.17 s⁻¹ |
+| imaging-light loss of qubit \|1⟩ per erasure image | 3.0(3)×10⁻³ | 5.6×10⁻⁴ (intrinsic) |
+| A(J′=½,−) – A(J′=3/2,−) spacing | 33 GHz | 33.2 GHz |
+
+The model reproduces the photon side and the paper's own golden-rule estimate. The *measured* N=0 cross talk is 4.5–5× the intrinsic Raman rate. The authors attribute the excess to spectral impurities in the imaging light. It should scale with intensity × time like the intrinsic part, so the optimisation below still holds. **For their laser, multiply the Raman numbers by ≈5.**
+
+### Answer at 1 G
+
+![paper bscan](docs/figures/paper_bscan.png)
+
+- **The scheme works at 1 G, and in fact scatters faster than at 4.4 G.**
+  - At the paper's intensity, R₁ = 2.56×10⁵ s⁻¹ at 1 G / 53°, against 1.64×10⁵ at 4.4 G / 53°.
+  - At 4.4 G the Zeeman shifts (up to ≈6 MHz for F = 2) move sublevels off resonance. At 1 G, Larmor precession together with the 2 MHz-RMS tensor shift still remixes the dark states.
+  - Running the paper's exact recipe (3 ms, on resonance) at 1 G gives the same false-negative rate: ε₁₀ = 3.5% at 53° and 3.4% at 90°, against 3.3% at 4.4 G (η = 5%).
+- **The one failure mode is imaging polarisation ∥ B.** If both beams are polarised along the tweezer axis and **B** is at 90° (also along that axis), R₁ drops to ≈0.3×10⁵ s⁻¹. Keep **B** ≈ 50° from the tweezer polarisation, or use horizontal beam polarisations.
+- **The N=0 cross talk does not depend on the field.** The rates are identical at 1, 2 and 4.4 G to 1%: 0.17–0.19 s⁻¹ Raman per 4.5 mW/cm², the same for \|1⟩ and \|0⟩.
+
+### Optimised settings for your collection efficiency (η = 2–4%), paper hardware at 1 G
+
+![paper tradeoff](docs/figures/paper_tradeoff.png)
+
+| camera / criterion | η | best setting at 1 G (B 53° from tweezer pol.) | T | intrinsic P_Raman per image (×5 for the paper's laser) |
+|---|---|---|---|---|
+| EMCCD as in paper, ε₁₀ ≤ 3.3% | 2% | not reachable at 930 µK: best ε₁₀ ≈ 7.4%, because heating limits each molecule to ~500 photons | — | — |
+| EMCCD as in paper, ε₁₀ ≤ 3.3% | 4% | s_tot = 0.6, Δ = −4 MHz | 4.1 ms | 5.0×10⁻⁴ |
+| EMCCD, deeper 1.5 mK trap | 2% | s_tot = 1.5, Δ = −4 MHz | 5.0 ms | 1.5×10⁻³ |
+| EMCCD, deeper 1.5 mK trap | 4% | s_tot = 0.6, Δ = −2 MHz | 3.5 ms | 4.3×10⁻⁴ |
+| photon-counting camera, F = 99% | 2% | s_tot = 1.5, Δ = −2 MHz | 0.68 ms | 2.1×10⁻⁴ |
+| photon-counting camera, F = 99% | 4% | s_tot = 0.6, Δ = 0 | 0.68 ms | 0.8×10⁻⁴ |
+
+For comparison, the paper's own point (s_tot = 0.93, 3 ms, 4.4 G) costs 5.6×10⁻⁴ intrinsic.
+
+Practical recipe at 1 G:
+1. Put **B** about 50° from the tweezer polarisation.
+2. Keep the paper's power split.
+3. Detune all sidebands 2–4 MHz red. This gives Doppler cooling along both beam axes and raises the photon budget before loss from ≈640 to ≈880 (−2 MHz) or ≈1050 (−4 MHz).
+4. Choose s_tot ≈ 0.6–1.5, then set T by your camera.
+
+With an EMCCD at η ≤ 4%, the image stays at 3–4 ms: the detection is limited by heating and loss plus EMCCD noise, and the field plays little role. A photon-counting (qCMOS) camera would cut both T and the cross talk by ~3–6×.
+
+---
+
+## Generic study (before the paper was available)
+
+The rest of this file is the first study, with the generic assumptions listed at the end: 1 µm waist, 40 µK start, one retro beam, stray light.
+Its conclusions about field independence of the cross talk and the flat speed/cross-talk trade-off still hold. Its absolute fidelities are optimistic, because it assumed an ideal photon-counting camera and a colder start.
+
+## Upshot (generic model)
 
 1. **Yes, the scheme works at 1 G.** The only condition is that the imaging polarisation must not be parallel to **B**.
    - At 1 G, N=1 scatters 0.46×10⁶ photons s⁻¹ per unit s_tot, against 0.42×10⁶ at 0 G. Both use a 1.5 mK tweezer, **B** ∥ tweezer polarisation, and imaging polarisation 50° away.
